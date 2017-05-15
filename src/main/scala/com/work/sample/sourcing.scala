@@ -1,7 +1,6 @@
 package com.work.sample
 
 import java.sql.DriverManager
-
 import java.sql.Connection
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
@@ -17,18 +16,20 @@ import java.io.PrintWriter;
 import org.jboss.netty.handler.queue.BufferedWriteHandler
 import java.io.BufferedWriter
 import java.io.FileWriter
+import org.apache.log4j.{Level,Logger}
 
 
 object sourcing {
 
-
+    
+  //Logger.getLogger("akka").setLevel(Level.OFF)
 	def main(args: Array[String]) {
 
 		//Hadoop Configuration
 		val conf1 = new Configuration()
 				conf1.set("fs.defaultFS", "hdfs://localhost:9000")  
 				val fs= FileSystem.get(conf1)
-
+				
 
 				//Details Of Database and Table 
 				val database =  readLine("Please enter Database Name:")
@@ -46,13 +47,14 @@ object sourcing {
 		//var createPath = fs.create(new Path(location))
 
 
-		val driver = "com.mysql.cj.jdbc.Driver"
+		    val driver = "com.mysql.cj.jdbc.Driver"
 				val url = "jdbc:mysql://localhost/"+database+"?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC"
 				val username = "scott"
 				val password = "tiger"
-				val conf = new SparkConf().setAppName("sourcing").setMaster("local[*]")
+				val conf = new SparkConf().setAppName("sourcing").setMaster("local").set("spark.serializer", "org.apache.spark.serializer.KryoSerializer").set("spark.kryoserializer.buffer.mb","24")
 				val sc = new SparkContext(conf)
 				val sqlContext = new SQLContext(sc)
+		    sc.setLogLevel("WARN")
 				import sqlContext.implicits._
 				// there's probably a better way to do this
 				var connection:Connection = null
@@ -61,7 +63,7 @@ object sourcing {
 					// make the connection
 					Class.forName(driver)
 					connection = DriverManager.getConnection(url, username, password)
-					val DataRdd = sqlContext.read.format("jdbc").option("url",url).option("driver",driver).option("dbtable",table).option("user",username).option("password",password).load()
+					val DataRdd = sqlContext.read.format("jdbc").option("url",url).option("driver",driver).option("dbtable",table).option("user",username).option("password",password).option("partitionColumn","rating").option("lowerBound","0").option("upperBound","5").option("numPartitions", "10").load()
 					DataRdd.registerTempTable(table)
 					val SaveRdd = sqlContext.sql("select * from "+ table)
 					println(SaveRdd.columns.toString())
